@@ -1,9 +1,19 @@
-apiVersion: sample.tempoplane.crossplane.io/v1alpha1
-kind: MyType
+apiVersion: orchestration.tempoplane.crossplane.io/v1alpha1
+kind: EntityWorkflow
 metadata:
-  name: example
+  name: example-entityworkflow
 spec:
+  deletionPolicy: Delete
   forProvider:
-    configurableField: test
+    entityInput:
+      entityID: "entity-420"
+      kind: "HostLocalFile"
+      apiVersion: "0.0.1"
+      data: "SomeTestDataCouldBeJSON"
+      requesterID: "CrossPlane"
+      dc: "EIN1"
+      env: "beta"
+      timestamp: 420000
+      correlationID: "420"
   providerConfigRef:
-    name: example
+    name: default

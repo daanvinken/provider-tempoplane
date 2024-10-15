@@ -19,6 +19,8 @@ package entityworkflow
 import (
 	"context"
 	"fmt"
+	"github.com/google/uuid"
+	"os"
 
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/types"
@@ -31,10 +33,12 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/ratelimiter"
 	"github.com/crossplane/crossplane-runtime/pkg/reconciler/managed"
 	"github.com/crossplane/crossplane-runtime/pkg/resource"
+	"github.com/daanvinken/tempoplane/pkg/entityworkflow"
 
 	"github.com/daanvinken/provider-tempoplane/apis/orchestration/v1alpha1"
 	apisv1alpha1 "github.com/daanvinken/provider-tempoplane/apis/v1alpha1"
 	"github.com/daanvinken/provider-tempoplane/internal/features"
+	temporalclient "go.temporal.io/sdk/client"
 )
 
 const (
@@ -131,6 +135,20 @@ type external struct {
 	service interface{}
 }
 
+func ConvertToEntityWorkflowInput(input v1alpha1.EntityInput) entityworkflow.EntityInput {
+	return entityworkflow.EntityInput{
+		EntityID:      input.EntityID,
+		Kind:          input.Kind,
+		APIVersion:    input.APIVersion,
+		Data:          input.Data,
+		RequesterID:   input.RequesterID,
+		DC:            input.DC,
+		Env:           input.Env,
+		Timestamp:     input.Timestamp,
+		CorrelationID: input.CorrelationID,
+	}
+}
+
 func (c *external) Observe(ctx context.Context, mg resource.Managed) (managed.ExternalObservation, error) {
 	cr, ok := mg.(*v1alpha1.EntityWorkflow)
 	if !ok {
@@ -144,7 +162,7 @@ func (c *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 		// Return false when the external resource does not exist. This lets
 		// the managed resource reconciler know that it needs to call Create to
 		// (re)create the resource, or that it has successfully been deleted.
-		ResourceExists: true,
+		ResourceExists: false,
 
 		// Return false when the external resource exists, but it not up to date
 		// with the desired managed resource state. This lets the managed
@@ -163,11 +181,52 @@ func (c *external) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 		return managed.ExternalCreation{}, errors.New(errNotEntityWorkflow)
 	}
 
-	fmt.Printf("Creating: %+v", cr)
+	// Parse EntityInput from the managed resource's spec
+	entityInput := cr.Spec.ForProvider.EntityInput
 
+	// Define the task queue that the workflow worker is listening on
+	taskQueue := "TempoPlane-" + entityInput.Kind
+
+	uniqueID := uuid.New().String()
+	//return fmt.Sprintf("%s-%s-%s-%s", operationType, entityID, requesterID, uniqueID)
+	ID := "TempoPlane-" + uniqueID + "-" + entityInput.RequesterID
+
+	// Configure workflow execution options
+	workflowOptions := temporalclient.StartWorkflowOptions{
+		TaskQueue: taskQueue,
+		ID:        ID,
+	}
+
+	// Create a Temporal client (assumes you have setup to obtain this client externally, adjust as needed)
+	tc, err := temporalclient.Dial(temporalclient.Options{
+		HostPort:  os.Getenv("TEMPORAL_ADDRESS"),
+		Namespace: os.Getenv("TEMPORAL_NS"),
+	})
+	defer tc.Close()
+	if err != nil {
+		return managed.ExternalCreation{}, errors.Wrap(err, "failed to create Temporal client")
+	}
+
+	// Execute the CreateWorkflow
+	workflowExecution, err := tc.ExecuteWorkflow(ctx, workflowOptions, entityworkflow.CreateWorkflow, ConvertToEntityWorkflowInput(entityInput))
+	if err != nil {
+		return managed.ExternalCreation{}, errors.Wrap(err, "failed to start CreateWorkflow")
+	}
+
+	// Log the WorkflowID and RunID for reference
+	fmt.Printf("Started CreateWorkflow with WorkflowID: %s and RunID: %s\n", workflowExecution.GetID(), workflowExecution.GetRunID())
+
+	// Optional: Wait for the workflow to complete and retrieve the result
+	var createResult entityworkflow.EntityOutput
+	err = workflowExecution.Get(ctx, &createResult)
+	if err != nil {
+		return managed.ExternalCreation{}, errors.Wrap(err, "failed to get CreateWorkflow result")
+	}
+	fmt.Printf("CreateWorkflow completed successfully with result: %s\n", createResult.Message)
+
+	// Return the ExternalCreation struct as required by Crossplane
 	return managed.ExternalCreation{
-		// Optionally return any details that may be required to connect to the
-		// external resource. These will be stored as the connection secret.
+		// You can add connection details here if required
 		ConnectionDetails: managed.ConnectionDetails{},
 	}, nil
 }
@@ -193,7 +252,50 @@ func (c *external) Delete(ctx context.Context, mg resource.Managed) error {
 		return errors.New(errNotEntityWorkflow)
 	}
 
-	fmt.Printf("Deleting: %+v", cr)
+	// Parse EntityInput from the managed resource's spec
+	entityInput := cr.Spec.ForProvider.EntityInput
 
+	// Define the task queue that the workflow worker is listening on
+	taskQueue := "TempoPlane-" + entityInput.Kind
+
+	uniqueID := uuid.New().String()
+	ID := "TempoPlane-Delete-" + uniqueID + "-" + entityInput.RequesterID
+
+	// Configure workflow execution options
+	workflowOptions := temporalclient.StartWorkflowOptions{
+		TaskQueue: taskQueue,
+		ID:        ID,
+	}
+
+	//TODO DRY this stuff
+
+	// Create a Temporal client
+	tc, err := temporalclient.Dial(temporalclient.Options{
+		HostPort:  os.Getenv("TEMPORAL_ADDRESS"),
+		Namespace: os.Getenv("TEMPORAL_NS"),
+	})
+	defer tc.Close()
+	if err != nil {
+		return errors.Wrap(err, "failed to create Temporal client")
+	}
+
+	// Execute the DeleteWorkflow
+	workflowExecution, err := tc.ExecuteWorkflow(ctx, workflowOptions, entityworkflow.DeleteWorkflow, ConvertToEntityWorkflowInput(entityInput))
+	if err != nil {
+		return errors.Wrap(err, "failed to start DeleteWorkflow")
+	}
+
+	// Log the WorkflowID and RunID for reference
+	fmt.Printf("Started DeleteWorkflow with WorkflowID: %s and RunID: %s\n", workflowExecution.GetID(), workflowExecution.GetRunID())
+
+	// Optional: Wait for the workflow to complete and retrieve the result
+	var deleteResult entityworkflow.EntityOutput
+	err = workflowExecution.Get(ctx, &deleteResult)
+	if err != nil {
+		return errors.Wrap(err, "failed to get DeleteWorkflow result")
+	}
+	fmt.Printf("DeleteWorkflow completed successfully with result: %s\n", deleteResult.Message)
+
+	// Return nil as there's no ExternalCreation required for deletions
 	return nil
 }
