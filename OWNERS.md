@@ -10,6 +10,4 @@ guidelines and responsibilities for the steering committee and maintainers.
 
 ## Maintainers
 
-* Nic Cope <negz@upbound.io> ([negz](https://github.com/negz))
-* Daniel Mangum <dan@upbound.io> ([hasheddan](https://github.com/hasheddan))
-* Muvaffak Onuş <monus@upbound.io> ([muvaf](https://github.com/muvaf))
+* Daan Vinken <vinkendaan@gmail.com> ([daanvinken](https://github.com/daanvinken))

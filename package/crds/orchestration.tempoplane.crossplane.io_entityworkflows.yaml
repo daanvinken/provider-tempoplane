@@ -4,18 +4,18 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.14.0
-  name: mytypes.sample.template.crossplane.io
+  name: entityworkflows.orchestration.tempoplane.crossplane.io
 spec:
-  group: sample.template.crossplane.io
+  group: orchestration.tempoplane.crossplane.io
   names:
     categories:
     - crossplane
     - managed
-    - template
-    kind: MyType
-    listKind: MyTypeList
-    plural: mytypes
-    singular: mytype
+    - tempoplane
+    kind: EntityWorkflow
+    listKind: EntityWorkflowList
+    plural: entityworkflows
+    singular: entityworkflow
   scope: Cluster
   versions:
   - additionalPrinterColumns:
@@ -34,7 +34,7 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: A MyType is an example API type.
+        description: A EntityWorkflow is an example API type.
         properties:
           apiVersion:
             description: |-
@@ -54,7 +54,8 @@ spec:
           metadata:
             type: object
           spec:
-            description: A MyTypeSpec defines the desired state of a MyType.
+            description: EntityWorkflowSpec defines the desired state of an EntityWorkflow,
+              including the EntityInput for CRUD operations.
             properties:
               deletionPolicy:
                 default: Delete
@@ -71,12 +72,60 @@ spec:
                 - Delete
                 type: string
               forProvider:
-                description: MyTypeParameters are the configurable fields of a MyType.
+                description: ForProvider contains the provider-specific input parameters
+                  for the workflow.
                 properties:
-                  configurableField:
-                    type: string
+                  entityInput:
+                    description: EntityInput captures the input data required for
+                      CRUD operations.
+                    properties:
+                      apiVersion:
+                        description: APIVersion specifies the API version of the entity.
+                        type: string
+                      correlationID:
+                        description: CorrelationID is used for tracking and correlating
+                          requests across services.
+                        type: string
+                      data:
+                        description: Data contains the main payload for the entity.
+                        type: string
+                      dc:
+                        description: DC specifies the data center for deployment or
+                          location context.
+                        type: string
+                      entityID:
+                        description: EntityID is the unique identifier for the entity
+                          in the workflow.
+                        type: string
+                      env:
+                        description: Env specifies the environment (e.g., production,
+                          development).
+                        type: string
+                      kind:
+                        description: Kind specifies the kind of entity (e.g., MyType,
+                          ResourceType).
+                        type: string
+                      requesterID:
+                        description: RequesterID identifies the entity's requester.
+                        type: string
+                      timestamp:
+                        description: Timestamp is the Unix timestamp of when the request
+                          was made.
+                        format: int64
+                        type: integer
+                    required:
+                    - apiVersion
+                    - correlationID
+                    - data
+                    - dc
+                    - entityID
+                    - env
+                    - kind
+                    - requesterID
+                    - timestamp
+                    type: object
                 required:
-                - configurableField
+                - entityInput
                 type: object
               managementPolicies:
                 default:
@@ -246,17 +295,33 @@ spec:
             - forProvider
             type: object
           status:
-            description: A MyTypeStatus represents the observed state of a MyType.
+            description: EntityWorkflowStatus represents the observed state of an
+              EntityWorkflow, including details about the Temporal workflow execution.
             properties:
               atProvider:
-                description: MyTypeObservation are the observable fields of a MyType.
+                description: AtProvider contains the provider-specific observed state,
+                  such as workflow IDs and status.
                 properties:
-                  configurableField:
+                  lastUpdated:
+                    description: LastUpdated is the timestamp of the last status update.
+                    format: int64
+                    type: integer
+                  message:
+                    description: Message provides additional details or error messages
+                      related to the workflow status.
                     type: string
-                  observableField:
+                  runID:
+                    description: RunID is the unique identifier for the specific run
+                      of the Temporal workflow.
                     type: string
-                required:
-                - configurableField
+                  status:
+                    description: Status indicates the current state of the workflow,
+                      such as running, completed, or failed.
+                    type: string
+                  workflowID:
+                    description: WorkflowID is the unique identifier of the Temporal
+                      workflow.
+                    type: string
                 type: object
               conditions:
                 description: Conditions of the resource.
