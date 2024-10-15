@@ -38,6 +38,7 @@ import (
 	"github.com/daanvinken/provider-tempoplane/apis/orchestration/v1alpha1"
 	apisv1alpha1 "github.com/daanvinken/provider-tempoplane/apis/v1alpha1"
 	"github.com/daanvinken/provider-tempoplane/internal/features"
+	temporalpb "go.temporal.io/api/enums/v1"
 	temporalclient "go.temporal.io/sdk/client"
 )
 
@@ -155,24 +156,60 @@ func (c *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 		return managed.ExternalObservation{}, errors.New(errNotEntityWorkflow)
 	}
 
-	// These fmt statements should be removed in the real implementation.
-	fmt.Printf("Observing: %+v", cr)
+	// Extract WorkflowID from CorrelationID in EntityInput
+	workflowID := cr.Spec.ForProvider.EntityInput.CorrelationID
 
-	return managed.ExternalObservation{
-		// Return false when the external resource does not exist. This lets
-		// the managed resource reconciler know that it needs to call Create to
-		// (re)create the resource, or that it has successfully been deleted.
-		ResourceExists: false,
+	// Create a Temporal client to query workflow status
+	tc, err := temporalclient.Dial(temporalclient.Options{
+		HostPort:  os.Getenv("TEMPORAL_ADDRESS"),
+		Namespace: os.Getenv("TEMPORAL_NS"),
+	})
+	defer tc.Close()
+	if err != nil {
+		return managed.ExternalObservation{}, errors.Wrap(err, "failed to create Temporal client for observation")
+	}
 
-		// Return false when the external resource exists, but it not up to date
-		// with the desired managed resource state. This lets the managed
-		// resource reconciler know that it needs to call Update.
-		ResourceUpToDate: true,
+	// Describe the workflow execution using the WorkflowID (CorrelationID)
+	// TODO probably wanna use runID as identifier on k8s
+	resp, err := tc.DescribeWorkflowExecution(ctx, workflowID, "")
+	if err != nil {
+		//TODO improve error check
+		if string(err.Error()) == "operation GetCurrentExecution encountered not found" {
+			return managed.ExternalObservation{ResourceExists: false}, nil
+		}
+		return managed.ExternalObservation{}, errors.Wrap(err, "failed to describe workflow execution")
+	}
 
-		// Return any details that may be required to connect to the external
-		// resource. These will be stored as the connection secret.
-		ConnectionDetails: managed.ConnectionDetails{},
-	}, nil
+	// Check the status of the workflow from the response
+	workflowStatus := resp.WorkflowExecutionInfo.GetStatus()
+	switch workflowStatus {
+	case temporalpb.WORKFLOW_EXECUTION_STATUS_COMPLETED:
+		// If the workflow has completed successfully
+		return managed.ExternalObservation{
+			ResourceExists:   true,
+			ResourceUpToDate: true,
+			ConnectionDetails: managed.ConnectionDetails{
+				"WorkflowID": []byte(workflowID),
+				"Status":     []byte("completed"),
+			},
+		}, nil
+	case temporalpb.WORKFLOW_EXECUTION_STATUS_RUNNING:
+		// If the workflow is still running
+		return managed.ExternalObservation{
+			ResourceExists:   true,
+			ResourceUpToDate: false,
+		}, nil
+	default:
+		// Handle other statuses (e.g., FAILED, TIMED_OUT)
+		return managed.ExternalObservation{
+			ResourceExists:   false,
+			ResourceUpToDate: false,
+			ConnectionDetails: managed.ConnectionDetails{
+				"WorkflowID": []byte(workflowID),
+				"Status":     []byte(workflowStatus.String()),
+			},
+		}, nil
+	}
 }
 
 func (c *external) Create(ctx context.Context, mg resource.Managed) (managed.ExternalCreation, error) {
@@ -187,9 +224,20 @@ func (c *external) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 	// Define the task queue that the workflow worker is listening on
 	taskQueue := "TempoPlane-" + entityInput.Kind
 
-	uniqueID := uuid.New().String()
+	//uniqueID := uuid.New().String()
 	//return fmt.Sprintf("%s-%s-%s-%s", operationType, entityID, requesterID, uniqueID)
-	ID := "TempoPlane-" + uniqueID + "-" + entityInput.RequesterID
+	ID := "TempoPlane" + "-" + entityInput.RequesterID
+
+	// Set CorrelationID to workflow ID
+	// TODO uniqueness
+	entityInput.CorrelationID = ID
+	cr.Spec.ForProvider.EntityInput.CorrelationID = ID
+
+	//TODO Now we need to update this
+	//err := c.kubeClient.Update(ctx, cr)
+	//if err != nil {
+	//	return managed.ExternalCreation{}, err
+	//}
 
 	// Configure workflow execution options
 	workflowOptions := temporalclient.StartWorkflowOptions{
