@@ -20,7 +20,7 @@ package apis
 import (
 	"k8s.io/apimachinery/pkg/runtime"
 
-	samplev1alpha1 "github.com/daanvinken/provider-tempoplane/apis/sample/v1alpha1"
+	samplev1alpha1 "github.com/daanvinken/provider-tempoplane/apis/orchestration/v1alpha1"
 	tempoplanev1alpha1 "github.com/daanvinken/provider-tempoplane/apis/v1alpha1"
 )
 

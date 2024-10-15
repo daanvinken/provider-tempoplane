@@ -1,4 +1,4 @@
-module github.com/crossplane/provider-tempoplane
+module github.com/daanvinken/provider-tempoplane
 
 go 1.21
 

@@ -4,7 +4,7 @@ metadata:
   name: provider-tempoplane
   annotations:
     meta.crossplane.io/maintainer: Crossplane Maintainers <info@crossplane.io>
-    meta.crossplane.io/source: github.com/crossplane/provider-tempoplane
+    meta.crossplane.io/source: github.com/daanvinken/provider-tempoplane
     meta.crossplane.io/license: Apache-2.0
     meta.crossplane.io/description: |
       A tempoplane that can be used to create Crossplane providers.
