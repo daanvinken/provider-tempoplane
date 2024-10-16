@@ -103,8 +103,16 @@ spec:
                 required:
                 - source
                 type: object
+              hostname:
+                description: Hostname is the temporal hostname (rpc endpoint).
+                type: string
+              namespace:
+                description: Hostname is the temporal namespace used for our workflows.
+                type: string
             required:
             - credentials
+            - hostname
+            - namespace
             type: object
           status:
             description: A ProviderConfigStatus reflects the observed state of a ProviderConfig.

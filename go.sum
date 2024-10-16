@@ -22,8 +22,6 @@ github.com/crossplane/crossplane-runtime v1.16.0 h1:lz+l0wEB3qowdTmN7t0PZkfuNSvf
 github.com/crossplane/crossplane-runtime v1.16.0/go.mod h1:Pz2tdGVMF6KDGzHZOkvKro0nKc8EzK0sb/nSA7pH4Dc=
 github.com/crossplane/crossplane-tools v0.0.0-20230925130601-628280f8bf79 h1:HigXs5tEQxWz0fcj8hzbU2UAZgEM7wPe0XRFOsrtF8Y=
 github.com/crossplane/crossplane-tools v0.0.0-20230925130601-628280f8bf79/go.mod h1:+e4OaFlOcmr0JvINHl/yvEYBrZawzTgj6pQumOH1SS0=
-github.com/daanvinken/tempoplane v0.0.0-20241015122140-7ede1cdd040c h1:LEtqb3QP8HrpcWsb6xNaiwqsojnqOX13TKqlDHx9ans=
-github.com/daanvinken/tempoplane v0.0.0-20241015122140-7ede1cdd040c/go.mod h1:ewmbXaPj6s3VvtdGCG/xuL+k0l0edywmodS1wQ6vwOc=
 github.com/daanvinken/tempoplane v0.0.0-20241015192601-7f2b8bb1683a h1:LA3MHm88hZAFXN5hbo1+kaUJp6smjalWzonNUaLzOOE=
 github.com/daanvinken/tempoplane v0.0.0-20241015192601-7f2b8bb1683a/go.mod h1:ewmbXaPj6s3VvtdGCG/xuL+k0l0edywmodS1wQ6vwOc=
 github.com/dave/jennifer v1.4.1 h1:XyqG6cn5RQsTj3qlWQTKlRGAyrTcsk1kUmWdZBzRjDw=

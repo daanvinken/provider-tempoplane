@@ -20,8 +20,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/google/uuid"
-	"os"
-
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -43,19 +41,12 @@ import (
 )
 
 const (
-	errNotEntityWorkflow = "managed resource is not a EntityWorkflow custom resource"
-	errTrackPCUsage      = "cannot track ProviderConfig usage"
-	errGetPC             = "cannot get ProviderConfig"
-	errGetCreds          = "cannot get credentials"
-
-	errNewClient = "cannot create new Service"
-)
-
-// A NoOpService does nothing.
-type NoOpService struct{}
-
-var (
-	newNoOpService = func(_ []byte) (interface{}, error) { return &NoOpService{}, nil }
+	errNotEntityWorkflow  = "managed resource is not a EntityWorkflow custom resource"
+	errTrackPCUsage       = "cannot track ProviderConfig usage"
+	errGetPC              = "cannot get ProviderConfig"
+	errGetCreds           = "cannot get credentials"
+	errTemporalConnection = "cannot connect to temporal"
+	errNewClient          = "cannot create new Service"
 )
 
 // Setup adds a controller that reconciles EntityWorkflow managed resources.
@@ -70,9 +61,9 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 	r := managed.NewReconciler(mgr,
 		resource.ManagedKind(v1alpha1.EntityWorkflowGroupVersionKind),
 		managed.WithExternalConnecter(&connector{
-			kube:         mgr.GetClient(),
-			usage:        resource.NewProviderConfigUsageTracker(mgr.GetClient(), &apisv1alpha1.ProviderConfigUsage{}),
-			newServiceFn: newNoOpService}),
+			kube:  mgr.GetClient(),
+			usage: resource.NewProviderConfigUsageTracker(mgr.GetClient(), &apisv1alpha1.ProviderConfigUsage{}),
+		}),
 		managed.WithLogger(o.Logger.WithValues("controller", name)),
 		managed.WithPollInterval(o.PollInterval),
 		managed.WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))),
@@ -89,9 +80,9 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 // A connector is expected to produce an ExternalClient when its Connect method
 // is called.
 type connector struct {
-	kube         client.Client
-	usage        resource.Tracker
-	newServiceFn func(creds []byte) (interface{}, error)
+	kube     client.Client
+	usage    resource.Tracker
+	temporal client.Client
 }
 
 // Connect typically produces an ExternalClient by:
@@ -114,29 +105,33 @@ func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.E
 		return nil, errors.Wrap(err, errGetPC)
 	}
 
-	cd := pc.Spec.Credentials
-	data, err := resource.CommonCredentialExtractor(ctx, cd.Source, c.kube, cd.CommonCredentialSelectors)
+	//cd := pc.Spec.Credentials
+
+	tc, err := temporalclient.Dial(temporalclient.Options{
+		HostPort:  pc.Spec.Hostname,
+		Namespace: pc.Spec.Namespace,
+	})
+
 	if err != nil {
-		return nil, errors.Wrap(err, errGetCreds)
+		return &external{}, errors.Wrap(err, errTemporalConnection)
 	}
 
-	svc, err := c.newServiceFn(data)
+	hreq := temporalclient.CheckHealthRequest{}
+	_, err = tc.CheckHealth(context.Background(), &hreq)
 	if err != nil {
-		return nil, errors.Wrap(err, errNewClient)
+		return &external{}, errors.Wrap(err, errTemporalConnection)
 	}
 
-	return &external{service: svc}, nil
+	return &external{temporalClient: tc}, nil
 }
 
 // An ExternalClient observes, then either creates, updates, or deletes an
 // external resource to ensure it reflects the managed resource's desired state.
 type external struct {
-	// A 'client' used to connect to the external resource API. In practice this
-	// would be something like an AWS SDK client.
-	service interface{}
+	temporalClient temporalclient.Client
 }
 
-func ConvertToEntityWorkflowInput(input v1alpha1.EntityInput) entityworkflow.EntityInput {
+func ConvertToEntityWorkflowInput(input v1alpha1.EntityInput, workflowID string) entityworkflow.EntityInput {
 	return entityworkflow.EntityInput{
 		EntityID:      input.EntityID,
 		Kind:          input.Kind,
@@ -146,7 +141,7 @@ func ConvertToEntityWorkflowInput(input v1alpha1.EntityInput) entityworkflow.Ent
 		DC:            input.DC,
 		Env:           input.Env,
 		Timestamp:     input.Timestamp,
-		CorrelationID: input.CorrelationID,
+		CorrelationID: workflowID,
 	}
 }
 
@@ -157,23 +152,14 @@ func (c *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 	}
 
 	// Extract WorkflowID from CorrelationID in EntityInput
-	workflowID := cr.Spec.ForProvider.EntityInput.CorrelationID
-
-	// Create a Temporal client to query workflow status
-	tc, err := temporalclient.Dial(temporalclient.Options{
-		HostPort:  os.Getenv("TEMPORAL_ADDRESS"),
-		Namespace: os.Getenv("TEMPORAL_NS"),
-	})
-	defer tc.Close()
-	if err != nil {
-		return managed.ExternalObservation{}, errors.Wrap(err, "failed to create Temporal client for observation")
-	}
+	workflowID := cr.Status.WorkflowID
 
 	// Describe the workflow execution using the WorkflowID (CorrelationID)
-	// TODO probably wanna use runID as identifier on k8s
-	resp, err := tc.DescribeWorkflowExecution(ctx, workflowID, "")
+	resp, err := c.temporalClient.DescribeWorkflowExecution(ctx, workflowID, "")
+
 	if err != nil {
 		//TODO improve error check
+		fmt.Println("Resource doesn't exist, returning")
 		if string(err.Error()) == "operation GetCurrentExecution encountered not found" {
 			return managed.ExternalObservation{ResourceExists: false}, nil
 		}
@@ -190,6 +176,7 @@ func (c *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 			ResourceUpToDate: true,
 			ConnectionDetails: managed.ConnectionDetails{
 				"WorkflowID": []byte(workflowID),
+				"runID":      []byte(resp.WorkflowExecutionInfo.FirstRunId),
 				"Status":     []byte("completed"),
 			},
 		}, nil
@@ -206,6 +193,7 @@ func (c *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 			ResourceUpToDate: false,
 			ConnectionDetails: managed.ConnectionDetails{
 				"WorkflowID": []byte(workflowID),
+				"runID":      []byte(resp.WorkflowExecutionInfo.Execution.RunId), //TODO correct RunID?
 				"Status":     []byte(workflowStatus.String()),
 			},
 		}, nil
@@ -213,6 +201,7 @@ func (c *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 }
 
 func (c *external) Create(ctx context.Context, mg resource.Managed) (managed.ExternalCreation, error) {
+	fmt.Println("creating...")
 	cr, ok := mg.(*v1alpha1.EntityWorkflow)
 	if !ok {
 		return managed.ExternalCreation{}, errors.New(errNotEntityWorkflow)
@@ -225,41 +214,22 @@ func (c *external) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 	taskQueue := "TempoPlane-" + entityInput.Kind
 
 	//uniqueID := uuid.New().String()
-	//return fmt.Sprintf("%s-%s-%s-%s", operationType, entityID, requesterID, uniqueID)
+	//ID := "TempoPlane" + "-" + uniqueID + "-" + entityInput.RequesterID
 	ID := "TempoPlane" + "-" + entityInput.RequesterID
 
-	// Set CorrelationID to workflow ID
-	// TODO uniqueness
-	entityInput.CorrelationID = ID
 	cr.Spec.ForProvider.EntityInput.CorrelationID = ID
-
-	//TODO Now we need to update this
-	//err := c.kubeClient.Update(ctx, cr)
-	//if err != nil {
-	//	return managed.ExternalCreation{}, err
-	//}
 
 	// Configure workflow execution options
 	workflowOptions := temporalclient.StartWorkflowOptions{
 		TaskQueue: taskQueue,
 		ID:        ID,
 	}
-
-	// Create a Temporal client (assumes you have setup to obtain this client externally, adjust as needed)
-	tc, err := temporalclient.Dial(temporalclient.Options{
-		HostPort:  os.Getenv("TEMPORAL_ADDRESS"),
-		Namespace: os.Getenv("TEMPORAL_NS"),
-	})
-	defer tc.Close()
-	if err != nil {
-		return managed.ExternalCreation{}, errors.Wrap(err, "failed to create Temporal client")
-	}
-
 	// Execute the CreateWorkflow
-	workflowExecution, err := tc.ExecuteWorkflow(ctx, workflowOptions, entityworkflow.CreateWorkflow, ConvertToEntityWorkflowInput(entityInput))
+	workflowExecution, err := c.temporalClient.ExecuteWorkflow(ctx, workflowOptions, entityworkflow.CreateWorkflow, ConvertToEntityWorkflowInput(entityInput, ID))
 	if err != nil {
 		return managed.ExternalCreation{}, errors.Wrap(err, "failed to start CreateWorkflow")
 	}
+	fmt.Println("Executing workflow")
 
 	// Log the WorkflowID and RunID for reference
 	fmt.Printf("Started CreateWorkflow with WorkflowID: %s and RunID: %s\n", workflowExecution.GetID(), workflowExecution.GetRunID())
@@ -315,20 +285,8 @@ func (c *external) Delete(ctx context.Context, mg resource.Managed) error {
 		ID:        ID,
 	}
 
-	//TODO DRY this stuff
-
-	// Create a Temporal client
-	tc, err := temporalclient.Dial(temporalclient.Options{
-		HostPort:  os.Getenv("TEMPORAL_ADDRESS"),
-		Namespace: os.Getenv("TEMPORAL_NS"),
-	})
-	defer tc.Close()
-	if err != nil {
-		return errors.Wrap(err, "failed to create Temporal client")
-	}
-
 	// Execute the DeleteWorkflow
-	workflowExecution, err := tc.ExecuteWorkflow(ctx, workflowOptions, entityworkflow.DeleteWorkflow, ConvertToEntityWorkflowInput(entityInput))
+	workflowExecution, err := c.temporalClient.ExecuteWorkflow(ctx, workflowOptions, entityworkflow.DeleteWorkflow, ConvertToEntityWorkflowInput(entityInput))
 	if err != nil {
 		return errors.Wrap(err, "failed to start DeleteWorkflow")
 	}

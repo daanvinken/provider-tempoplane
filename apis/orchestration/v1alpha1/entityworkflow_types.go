@@ -63,6 +63,9 @@ type EntityWorkflowStatus struct {
 	// ResourceStatus includes common fields for tracking the status of external resources.
 	xpv1.ResourceStatus `json:",inline"`
 
+	// WorkflowID `json:",inline"`
+	WorkflowID string `json:"workflowID,omitempty"`
+
 	// AtProvider contains the provider-specific observed state, such as workflow IDs and status.
 	AtProvider EntityWorkflowObservation `json:"atProvider,omitempty"`
 }

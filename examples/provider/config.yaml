@@ -17,6 +17,8 @@ kind: ProviderConfig
 metadata:
   name: default
 spec:
+  hostname: xxx
+  namespace: daanvi
   credentials:
     source: Secret
     secretRef:

@@ -27,6 +27,10 @@ import (
 
 // A ProviderConfigSpec defines the desired state of a ProviderConfig.
 type ProviderConfigSpec struct {
+	// Hostname is the temporal hostname (rpc endpoint).
+	Hostname string `json:"hostname"`
+	// Hostname is the temporal namespace used for our workflows.
+	Namespace string `json:"namespace"`
 	// Credentials required to authenticate to this provider.
 	Credentials ProviderCredentials `json:"credentials"`
 }
