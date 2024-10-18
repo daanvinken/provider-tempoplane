@@ -1,7 +1,7 @@
 apiVersion: orchestration.tempoplane.crossplane.io/v1alpha1
 kind: EntityWorkflow
 metadata:
-  name: example-entityworkflow
+  name: example-entityworkflow-1
 spec:
   deletionPolicy: Delete
   forProvider:
@@ -9,7 +9,7 @@ spec:
       entityID: "entity-420"
       kind: "HostLocalFile"
       apiVersion: "0.0.1"
-      data: "SomeTestDataCouldBeJSON"
+      data: "/tmp/abcdf.txt"
       requesterID: "CrossPlane"
       dc: "EIN1"
       env: "beta"

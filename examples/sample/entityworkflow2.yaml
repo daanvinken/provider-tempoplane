@@ -1,0 +1,19 @@
+apiVersion: orchestration.tempoplane.crossplane.io/v1alpha1
+kind: EntityWorkflow
+metadata:
+  name: example-entityworkflow-2
+spec:
+  deletionPolicy: Delete
+  forProvider:
+    entityInput:
+      entityID: "entity-420"
+      kind: "HostLocalFile"
+      apiVersion: "0.0.1"
+      data: "/tmp/ghijk.txt"
+      requesterID: "CrossPlane"
+      dc: "EIN1"
+      env: "beta"
+      timestamp: 420000
+      correlationID: "TempoPlane-CrossPlane"
+  providerConfigRef:
+    name: default

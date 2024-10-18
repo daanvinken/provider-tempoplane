@@ -30,7 +30,7 @@ type EntityWorkflowObservation struct {
 	// WorkflowID is the unique identifier of the Temporal workflow.
 	WorkflowID string `json:"workflowID,omitempty"`
 
-	// RunID is the unique identifier for the specific run of the Temporal workflow.
+	// RunID is the unique identifier for the last known run of the Temporal workflow.
 	RunID string `json:"runID,omitempty"`
 
 	// Status indicates the current state of the workflow, such as running, completed, or failed.

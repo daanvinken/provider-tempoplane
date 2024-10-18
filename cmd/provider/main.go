@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"k8s.io/klog/v2"
 	"os"
 	"path/filepath"
 	"time"
@@ -61,6 +62,8 @@ func main() {
 
 	zl := zap.New(zap.UseDevMode(*debug))
 	log := logging.NewLogrLogger(zl.WithName("provider-tempoplane"))
+	ctrl.SetLogger(zl)
+	klog.SetLogger(zl)
 	if *debug {
 		// The controller-runtime runs with a no-op logger by default. It is
 		// *very* verbose even at info level, so we only provide it a real

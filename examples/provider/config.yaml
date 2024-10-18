@@ -1,3 +1,4 @@
+
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -17,7 +18,7 @@ kind: ProviderConfig
 metadata:
   name: default
 spec:
-  hostname: xxx
+  hostname: temporal-poc-rpc.app01.k8s.adyen.com:7233
   namespace: daanvi
   credentials:
     source: Secret
