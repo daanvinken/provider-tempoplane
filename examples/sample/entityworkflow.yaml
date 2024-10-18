@@ -11,8 +11,6 @@ spec:
       apiVersion: "0.0.1"
       data: "/tmp/abcdf.txt"
       requesterID: "CrossPlane"
-      dc: "EIN1"
-      env: "beta"
       timestamp: 420000
       correlationID: "TempoPlane-CrossPlane"
   providerConfigRef:

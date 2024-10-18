@@ -25,8 +25,11 @@ spec:
     - jsonPath: .status.conditions[?(@.type=='Synced')].status
       name: SYNCED
       type: string
-    - jsonPath: .metadata.annotations.crossplane\.io/external-name
-      name: EXTERNAL-NAME
+    - jsonPath: .status.atProvider.runID
+      name: LAST-RUN-ID
+      type: string
+    - jsonPath: .status.atProvider.taskQueue
+      name: TASK-QUEUE
       type: string
     - jsonPath: .metadata.creationTimestamp
       name: AGE
@@ -89,17 +92,9 @@ spec:
                       data:
                         description: Data contains the main payload for the entity.
                         type: string
-                      dc:
-                        description: DC specifies the data center for deployment or
-                          location context.
-                        type: string
                       entityID:
                         description: EntityID is the unique identifier for the entity
                           in the workflow.
-                        type: string
-                      env:
-                        description: Env specifies the environment (e.g., production,
-                          development).
                         type: string
                       kind:
                         description: Kind specifies the kind of entity (e.g., MyType,
@@ -117,9 +112,7 @@ spec:
                     - apiVersion
                     - correlationID
                     - data
-                    - dc
                     - entityID
-                    - env
                     - kind
                     - requesterID
                     - timestamp
@@ -311,12 +304,15 @@ spec:
                       related to the workflow status.
                     type: string
                   runID:
-                    description: RunID is the unique identifier for the specific run
-                      of the Temporal workflow.
+                    description: RunID is the unique identifier for the last known
+                      run of the Temporal workflow.
                     type: string
                   status:
                     description: Status indicates the current state of the workflow,
                       such as running, completed, or failed.
+                    type: string
+                  taskQueue:
+                    description: TaskQueue is the name of the task queue in temporal
                     type: string
                   workflowID:
                     description: WorkflowID is the unique identifier of the Temporal

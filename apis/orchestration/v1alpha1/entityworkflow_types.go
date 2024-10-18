@@ -33,6 +33,9 @@ type EntityWorkflowObservation struct {
 	// RunID is the unique identifier for the last known run of the Temporal workflow.
 	RunID string `json:"runID,omitempty"`
 
+	// TaskQueue is the name of the task queue in temporal
+	TaskQueue string `json:"taskQueue,omitempty"`
+
 	// Status indicates the current state of the workflow, such as running, completed, or failed.
 	Status string `json:"status,omitempty"`
 
@@ -87,12 +90,6 @@ type EntityInput struct {
 	// RequesterID identifies the entity's requester.
 	RequesterID string `json:"requesterID"`
 
-	// DC specifies the data center for deployment or location context.
-	DC string `json:"dc"`
-
-	// Env specifies the environment (e.g., production, development).
-	Env string `json:"env"`
-
 	// Timestamp is the Unix timestamp of when the request was made.
 	Timestamp int64 `json:"timestamp"`
 
@@ -105,7 +102,8 @@ type EntityInput struct {
 // A EntityWorkflow is an example API type.
 // +kubebuilder:printcolumn:name="READY",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 // +kubebuilder:printcolumn:name="SYNCED",type="string",JSONPath=".status.conditions[?(@.type=='Synced')].status"
-// +kubebuilder:printcolumn:name="EXTERNAL-NAME",type="string",JSONPath=".metadata.annotations.crossplane\\.io/external-name"
+// +kubebuilder:printcolumn:name="LAST-RUN-ID",type="string",JSONPath=".status.atProvider.runID"
+// +kubebuilder:printcolumn:name="TASK-QUEUE",type="string",JSONPath=".status.atProvider.taskQueue"
 // +kubebuilder:printcolumn:name="AGE",type="date",JSONPath=".metadata.creationTimestamp"
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster,categories={crossplane,managed,tempoplane}

@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	xpv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
-	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -142,8 +141,6 @@ func ConvertToEntityWorkflowInput(input v1alpha1.EntityInput) entityworkflow.Ent
 		APIVersion:    input.APIVersion,
 		Data:          input.Data,
 		RequesterID:   input.RequesterID,
-		DC:            input.DC,
-		Env:           input.Env,
 		Timestamp:     input.Timestamp,
 		CorrelationID: input.CorrelationID,
 	}
@@ -190,6 +187,8 @@ func (c *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 		}
 		cr.SetConditions(xpv1.Available())
 		// If the workflow has completed successfully
+		//TODO (daanvi) Workflow to compare state, we can store a last run timestamp to decide whether we trigger a new read workflow
+		// This will have implications for the actual time to reconcile though
 		return managed.ExternalObservation{
 			ResourceExists:   true,
 			ResourceUpToDate: true,
@@ -232,10 +231,10 @@ func (c *external) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 	// Define the task queue that the workflow worker is listening on
 	taskQueue := "TempoPlane-" + entityInput.Kind
 
-	uniqueID := uuid.New().String()
-	ID := "TempoPlane" + "-" + uniqueID + "-" + entityInput.RequesterID
+	ID := "TempoPlane-" + "-" + cr.Spec.ForProvider.EntityInput.Kind + "_" + cr.Name
 
 	cr.Spec.ForProvider.EntityInput.CorrelationID = ID
+	cr.Status.AtProvider.TaskQueue = taskQueue
 
 	// Configure workflow execution options
 	workflowOptions := temporalclient.StartWorkflowOptions{
@@ -295,6 +294,7 @@ func (c *external) Update(ctx context.Context, mg resource.Managed) (managed.Ext
 }
 
 func (c *external) Delete(ctx context.Context, mg resource.Managed) error {
+	fmt.Println("deleeting")
 	cr, ok := mg.(*v1alpha1.EntityWorkflow)
 	if !ok {
 		return errors.New(errNotEntityWorkflow)
