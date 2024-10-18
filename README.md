@@ -1,13 +1,18 @@
-# provider-tempoplane
+# Provider tempoplane
+![Logo](logo.png)
 
-`provider-tempoplane` is a minimal [Crossplane](https://crossplane.io/) Provider
-that is meant to be used as a tempoplane for implementing new Providers. It comes
-with the following features that are meant to be refactored:
 
-- A `ProviderConfig` type that only points to a credentials `Secret`.
-- A `MyType` resource type that serves as an example managed resource.
-- A managed resource controller that reconciles `MyType` objects and simply
-  prints their configuration in its `Observe` method.
+Provider for Crossplane to manage and orchestrate Temporal-based workflows using Tempoplane.
+
+## Features
+- Manage workflows as Crossplane custom resources.
+- Observe, create, update, and delete workflows from Kubernetes.
+
+## Usage
+1. Install Crossplane.
+2. Deploy the `provider-tempoplane`.
+3. Define `EntityWorkflow` custom resources to manage your workflows.
+4. Configure your worker via https://github.com/daanvinken/tempoplane
 
 ## Developing
 

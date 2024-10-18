@@ -294,7 +294,7 @@ func (c *external) Update(ctx context.Context, mg resource.Managed) (managed.Ext
 }
 
 func (c *external) Delete(ctx context.Context, mg resource.Managed) error {
-	fmt.Println("deleeting")
+	fmt.Println("deleting")
 	cr, ok := mg.(*v1alpha1.EntityWorkflow)
 	if !ok {
 		return errors.New(errNotEntityWorkflow)
